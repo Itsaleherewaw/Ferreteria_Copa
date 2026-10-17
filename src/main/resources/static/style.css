@@ -119,6 +119,11 @@ td .sec,td .danger{margin-right:6px}td:last-child:has(button){white-space:nowrap
 .legend{list-style:none;margin:0;padding:0 22px 20px;display:flex;flex-direction:column;gap:10px;font-size:.88rem}
 .legend li{display:flex;align-items:center;gap:10px}.legend .sw{width:10px;height:10px;border-radius:3px}.legend .nm{flex:1}.legend .vl{color:var(--muted);font-variant-numeric:tabular-nums}
 
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.tabs button{background:var(--glass2);border:1px solid var(--line);box-shadow:none;color:var(--muted);padding:9px 18px;font-weight:500}
+.tabs button:hover{color:var(--txt);background:rgba(255,255,255,.14)}
+.tabs button.on{background:linear-gradient(135deg,#3a68f0,#5f90ff);border-color:transparent;color:#fff;box-shadow:0 8px 22px -6px var(--glow)}
+.rep-bar{display:flex;align-items:center;gap:12px;margin-bottom:14px}.rep-bar .sec{margin-left:auto}
 @media(max-width:1200px){.dash{grid-template-columns:1fr}}
 @media(max-width:800px){
   #app{flex-direction:column;height:auto;margin:10px;border-radius:22px}

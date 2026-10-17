@@ -46,11 +46,12 @@ const ICON = {
   clientes: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14c2.2.7 3.5 2.7 3.5 6"/>',
   proveedores: '<path d="M2 6h11v10H2z"/><path d="M13 9h5l3 3v4h-8"/><circle cx="6" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
   pagos: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/><path d="M6 15h4"/>',
+  reportes: '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-8"/><path d="M22 20H2"/>',
   empleados: '<path d="M12 3l8 3v6c0 5-3.5 8-9 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/>'
 };
 const MENU = [['dashboard','Panel general'],['ventas','Ventas'],['compras','Compras'],['productos','Productos'],
   ['inventario','Inventario'],['categorias','Categorías'],['clientes','Clientes'],['proveedores','Proveedores'],
-  ['pagos','Pagos'],['empleados','Empleados',true]];
+  ['pagos','Pagos'],['reportes','Reportes',true],['empleados','Empleados',true]];
 
 /* ---------- CRUD genérico ---------- */
 const ENT = {
@@ -266,9 +267,59 @@ async function render(name) {
     else if (name === 'ventas' || name === 'compras') await orden(name);
     else if (name === 'inventario') await inventario();
     else if (name === 'pagos') await pagos();
+    else if (name === 'reportes') await reportes();
     else await crudView(name);
   } catch (e) {
     if (e.message !== 'Sesión expirada') $('#view').innerHTML = `<p class="err">${esc(e.message)}</p>`;
+  }
+}
+
+/* ---------- Reportes ---------- */
+const REPORTES = [
+  ['resumen', 'Resumen'], ['ventas', 'Ventas'], ['compras', 'Compras'], ['mas-vendidos', 'Más vendidos'],
+  ['ventas-por-empleado', 'Por empleado'], ['ventas-por-metodo', 'Por método de pago'],
+  ['inventario', 'Inventario'], ['stock-bajo', 'Stock bajo']
+];
+let repActual = 'resumen';
+const MONEY_KEY = /total|monto|precio|valor|subtotal|ingreso|costo|importe|gananc/i;
+const ETIQ = { id: 'N.º', metodopago: 'Método de pago', metodo: 'Método', stockminimo: 'Stock mínimo', preciocompra: 'Precio de compra', precioventa: 'Precio de venta', categoria: 'Categoría', cantidadventas: 'N.º de ventas', totalventas: 'Ventas totales', totalcompras: 'Compras totales', stockbajo: 'Stock bajo', valorinventario: 'Valor del inventario' };
+const nombreCampo = k => ETIQ[String(k).toLowerCase().replace(/[_-]/g, '')] || (t => t.charAt(0).toUpperCase() + t.slice(1))(String(k).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]/g, ' ').toLowerCase());
+const plano = v => v && typeof v === 'object' ? (v.nombre ?? v.usuario ?? v.codigo ?? JSON.stringify(v)) : v;
+function celda(k, v) {
+  v = plano(v);
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'Sí' : 'No';
+  if (typeof v === 'number') return MONEY_KEY.test(k) ? money(v) : v.toLocaleString('es-BO');
+  if (typeof v === 'string' && /^\d{4}-\d\d-\d\dT/.test(v)) return fecha(v);
+  return esc(v);
+}
+function descargarCsv(nombre, filas, cols) {
+  const q = v => '"' + String(plano(v) ?? '').replace(/"/g, '""') + '"';
+  const csv = [cols.map(c => q(nombreCampo(c))).join(';'), ...filas.map(f => cols.map(c => q(f[c])).join(';'))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'reporte-' + nombre + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+async function reportes() {
+  $('#view').innerHTML = `<div class="tabs">${REPORTES.map(r => `<button data-r="${r[0]}" class="${r[0] === repActual ? 'on' : ''}">${r[1]}</button>`).join('')}</div><div id="repOut"><p class="empty">Cargando...</p></div>`;
+  $('#view .tabs').onclick = e => { const b = e.target.closest('button'); if (b) { repActual = b.dataset.r; reportes(); } };
+  const out = $('#repOut');
+  const data = await api('/api/reportes/' + repActual);
+  const titulo = REPORTES.find(r => r[0] === repActual)[1];
+  if (Array.isArray(data)) {
+    if (!data.length) { out.innerHTML = '<div class="panel"><p class="empty">No hay datos para este reporte todavía.</p></div>'; return; }
+    const cols = Object.keys(data[0]).filter(k => !Array.isArray(data[0][k]));
+    out.innerHTML = `<div class="rep-bar"><h3>${titulo}</h3><span class="pill">${data.length} registros</span><button id="btnCsv" class="sec">Descargar CSV</button></div>
+      <table><thead><tr>${cols.map(c => `<th>${nombreCampo(c)}</th>`).join('')}</tr></thead>
+      <tbody>${data.map(f => `<tr>${cols.map(c => `<td>${celda(c, f[c])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    $('#btnCsv').onclick = () => descargarCsv(repActual, data, cols);
+  } else {
+    const ent = Object.entries(data || {});
+    const mapaMonto = ent.length && ent.every(([k, v]) => typeof v === 'number' && k === k.toUpperCase());
+    out.innerHTML = `<div class="rep-bar"><h3>${titulo}</h3></div><section class="kpis">${ent.map(([k, v]) =>
+      `<div class="kpi"><span>${nombreCampo(k)}</span><b>${mapaMonto ? money(v) : celda(k, v)}</b></div>`).join('') || '<p class="empty">Sin datos.</p>'}</section>`;
   }
 }
 
