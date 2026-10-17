@@ -46,11 +46,12 @@ const ICON = {
   clientes: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14c2.2.7 3.5 2.7 3.5 6"/>',
   proveedores: '<path d="M2 6h11v10H2z"/><path d="M13 9h5l3 3v4h-8"/><circle cx="6" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
   pagos: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/><path d="M6 15h4"/>',
+  reportes: '<path d="M3 20h18"/><rect x="5" y="11" width="3" height="9"/><rect x="10.5" y="5" width="3" height="15"/><rect x="16" y="14" width="3" height="6"/>',
   empleados: '<path d="M12 3l8 3v6c0 5-3.5 8-9 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/>'
 };
 const MENU = [['dashboard','Panel general'],['ventas','Ventas'],['compras','Compras'],['productos','Productos'],
   ['inventario','Inventario'],['categorias','Categorías'],['clientes','Clientes'],['proveedores','Proveedores'],
-  ['pagos','Pagos'],['empleados','Empleados',true]];
+  ['pagos','Pagos'],['reportes','Reportes'],['empleados','Empleados',true]];
 
 /* ---------- CRUD genérico ---------- */
 const ENT = {
@@ -133,7 +134,7 @@ async function crudView(name) {
   });
 }
 
-/* ---------- Dashboard / reportes ---------- */
+/* ---------- Dashboard ---------- */
 async function dashboard() {
   const [r, mv, al, vs] = await Promise.all([api('/api/reportes/resumen'), api('/api/reportes/mas-vendidos'), api('/api/inventario/alertas'), api('/api/ventas')]);
   const ticket = r.cantidadVentas ? r.totalVentas / r.cantidadVentas : 0;
@@ -244,6 +245,71 @@ async function orden(kind) {
   };
 }
 
+/* ---------- Reportes ---------- */
+const REP = {
+  ventas: { t: 'Ventas por fecha', dates: true, sum: 'total',
+    cols: [['id','ID'],['fecha','Fecha','f'],['cliente','Cliente'],['empleado','Vendedor'],['metodoPago','Pago'],['total','Total','m']] },
+  compras: { t: 'Compras por fecha', dates: true, sum: 'total',
+    cols: [['id','ID'],['fecha','Fecha','f'],['proveedor','Proveedor'],['total','Total','m']] },
+  'mas-vendidos': { t: 'Productos más vendidos', dates: true, sum: 'ingresos',
+    cols: [['producto','Producto'],['cantidad','Unidades'],['ingresos','Ingresos','m']] },
+  'ventas-por-empleado': { t: 'Ventas por empleado', dates: true, sum: 'total',
+    cols: [['grupo','Empleado'],['ventas','N.º ventas'],['total','Total','m']] },
+  'ventas-por-metodo': { t: 'Ventas por método de pago', dates: true, sum: 'total',
+    cols: [['grupo','Método'],['ventas','N.º ventas'],['total','Total','m']] },
+  inventario: { t: 'Inventario valorizado', sum: 'valor',
+    cols: [['codigo','Código'],['producto','Producto'],['categoria','Categoría'],['stock','Stock'],['precioCompra','P. compra','m'],['valor','Valor','m']] },
+  'stock-bajo': { t: 'Productos con stock bajo',
+    cols: [['codigo','Código'],['producto','Producto'],['categoria','Categoría'],['stock','Stock'],['stockMinimo','Mínimo']] }
+};
+
+async function reportes() {
+  $('#view').innerHTML = `
+    <form id="rf" class="card noprint">
+      <div class="grid">
+        <label>Reporte<select id="rt">${Object.entries(REP).map(([k, r]) => `<option value="${k}">${r.t}</option>`).join('')}</select></label>
+        <label>Desde<input type="date" id="rd"></label>
+        <label>Hasta<input type="date" id="rh"></label>
+      </div>
+      <div class="actions"><button type="submit">Generar</button><button type="button" id="rcsv" class="sec">Exportar CSV</button><button type="button" id="rprint" class="sec">Imprimir / PDF</button></div>
+      <p id="msg" class="err"></p>
+    </form>
+    <div id="rout"></div>`;
+  let cur = null;
+
+  const gen = async e => {
+    if (e) e.preventDefault();
+    $('#msg').textContent = '';
+    const k = $('#rt').value, r = REP[k], q = new URLSearchParams();
+    if (r.dates) { if ($('#rd').value) q.set('desde', $('#rd').value); if ($('#rh').value) q.set('hasta', $('#rh').value); }
+    try {
+      const rows = await api('/api/reportes/' + k + (q.toString() ? '?' + q : ''));
+      cur = { k, r, rows };
+      const total = r.sum ? rows.reduce((a, x) => a + Number(x[r.sum] || 0), 0) : null;
+      const rango = r.dates && ($('#rd').value || $('#rh').value) ? `Del ${$('#rd').value || 'inicio'} al ${$('#rh').value || 'hoy'}` : '';
+      const cell = (x, c) => c[2] === 'm' ? money(x[c[0]]) : c[2] === 'f' ? fecha(x[c[0]]) : esc(x[c[0]]);
+      $('#rout').innerHTML = `<h2>${r.t}</h2><p>${rango} · Generado: ${new Date().toLocaleString('es-BO')} · ${rows.length} registro(s)</p>
+        <table><thead><tr>${r.cols.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>
+        ${rows.map(x => `<tr>${r.cols.map(c => `<td>${cell(x, c)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${r.cols.length}">Sin datos para este filtro</td></tr>`}
+        ${total !== null ? `<tr><th colspan="${r.cols.length - 1}">TOTAL</th><th>${money(total)}</th></tr>` : ''}</tbody></table>`;
+    } catch (err) { $('#msg').textContent = err.message; }
+  };
+  $('#rf').onsubmit = gen;
+  $('#rt').onchange = gen;
+  $('#rprint').onclick = () => window.print();
+  $('#rcsv').onclick = () => {
+    if (!cur) return;
+    const { k, r, rows } = cur;
+    const lines = [r.cols.map(c => c[1]), ...rows.map(x => r.cols.map(c => c[2] === 'f' ? fecha(x[c[0]]) : x[c[0]]))];
+    const csv = '\ufeff' + lines.map(l => l.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'reporte-' + k + '.csv';
+    a.click();
+  };
+  gen();
+}
+
 /* ---------- Router ---------- */
 async function render(name) {
   $('#title').textContent = MENU.find(m => m[0] === name)?.[1] || '';
@@ -254,6 +320,7 @@ async function render(name) {
     else if (name === 'ventas' || name === 'compras') await orden(name);
     else if (name === 'inventario') await inventario();
     else if (name === 'pagos') await pagos();
+    else if (name === 'reportes') await reportes();
     else await crudView(name);
   } catch (e) {
     if (e.message !== 'Sesión expirada') $('#view').innerHTML = `<p class="err">${esc(e.message)}</p>`;

@@ -131,3 +131,4 @@ td .sec,td .danger{margin-right:4px}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 td:last-child:has(button){white-space:nowrap}
+@media print{aside,.noprint,#title{display:none!important}main{padding:0}body{background:#fff}table{box-shadow:none}}
