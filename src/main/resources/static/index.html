@@ -4,27 +4,43 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ferretería Copacabana</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <section id="login" class="login">
-    <form id="loginForm" class="card">
-      <h1>🔧 Ferretería Copacabana</h1>
-      <input id="u" placeholder="Usuario" autocomplete="username" required>
-      <input id="p" type="password" placeholder="Contraseña" autocomplete="current-password" required>
-      <button type="submit">Entrar</button>
-      <p id="err" class="err"></p>
+    <div class="login-brand">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7L12 2z"/><circle cx="12" cy="12" r="3.2"/></svg>
+      <h1>Ferretería Copacabana</h1>
+      <p>Sistema de gestión e inventario</p>
+    </div>
+    <form id="loginForm" class="login-form">
+      <h2>Iniciar sesión</h2>
+      <p class="hint">Ingresa con tu usuario de empleado.</p>
+      <label>Usuario<input id="u" autocomplete="username" required autofocus></label>
+      <label>Contraseña<input id="p" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Iniciar sesión</button>
+      <p id="err" class="err" role="alert"></p>
     </form>
   </section>
 
   <div id="app" hidden>
     <aside>
-      <h2>🔧 Ferretería</h2>
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7L12 2z"/><circle cx="12" cy="12" r="3.2"/></svg>
+        <div><b>Ferretería</b><span>Copacabana</span></div>
+      </div>
       <nav id="nav"></nav>
-      <div class="who"><span id="who"></span><button id="btnOut" class="sec">Salir</button></div>
+      <div class="who">
+        <div class="avatar" id="avatar"></div>
+        <div class="who-text"><b id="whoName"></b><span id="whoRole"></span></div>
+        <button id="btnOut" class="out">Cerrar sesión</button>
+      </div>
     </aside>
     <main>
-      <h1 id="title"></h1>
+      <header class="head"><h1 id="title"></h1><p id="sub"></p></header>
       <div id="view"></div>
     </main>
   </div>
