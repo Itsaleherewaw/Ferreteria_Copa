@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ferretería Copacabana</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section id="login" class="login">
+    <form id="loginForm" class="card">
+      <h1>🔧 Ferretería Copacabana</h1>
+      <input id="u" placeholder="Usuario" autocomplete="username" required>
+      <input id="p" type="password" placeholder="Contraseña" autocomplete="current-password" required>
+      <button type="submit">Entrar</button>
+      <p id="err" class="err"></p>
+    </form>
+  </section>
+
+  <div id="app" hidden>
+    <aside>
+      <h2>🔧 Ferretería</h2>
+      <nav id="nav"></nav>
+      <div class="who"><span id="who"></span><button id="btnOut" class="sec">Salir</button></div>
+    </aside>
+    <main>
+      <h1 id="title"></h1>
+      <div id="view"></div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
