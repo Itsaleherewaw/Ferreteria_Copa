@@ -21,7 +21,7 @@ function showApp() {
   $('#whoRole').textContent = me.rol === 'ADMIN' ? 'Administrador' : 'Empleado';
   $('#avatar').textContent = me.usuario.charAt(0);
   $('#nav').innerHTML = MENU.filter(m => !m[2] || me.rol === 'ADMIN')
-    .map(m => `<button data-k="${m[0]}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[m[0]] || ''}</svg>${m[1]}</button>`).join('');
+    .map(m => `<button data-k="${m[0]}"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[m[0]] || ''}</svg></span>${m[1]}</button>`).join('');
   document.querySelectorAll('#nav button').forEach(b => b.onclick = () => render(b.dataset.k));
   render('dashboard');
 }
@@ -46,12 +46,11 @@ const ICON = {
   clientes: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14c2.2.7 3.5 2.7 3.5 6"/>',
   proveedores: '<path d="M2 6h11v10H2z"/><path d="M13 9h5l3 3v4h-8"/><circle cx="6" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',
   pagos: '<rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/><path d="M6 15h4"/>',
-  reportes: '<path d="M3 20h18"/><rect x="5" y="11" width="3" height="9"/><rect x="10.5" y="5" width="3" height="15"/><rect x="16" y="14" width="3" height="6"/>',
   empleados: '<path d="M12 3l8 3v6c0 5-3.5 8-9 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/>'
 };
 const MENU = [['dashboard','Panel general'],['ventas','Ventas'],['compras','Compras'],['productos','Productos'],
   ['inventario','Inventario'],['categorias','Categorías'],['clientes','Clientes'],['proveedores','Proveedores'],
-  ['pagos','Pagos'],['reportes','Reportes'],['empleados','Empleados',true]];
+  ['pagos','Pagos'],['empleados','Empleados',true]];
 
 /* ---------- CRUD genérico ---------- */
 const ENT = {
@@ -134,57 +133,68 @@ async function crudView(name) {
   });
 }
 
-/* ---------- Dashboard ---------- */
+/* ---------- Dashboard / reportes ---------- */
 async function dashboard() {
   const [r, mv, al, vs] = await Promise.all([api('/api/reportes/resumen'), api('/api/reportes/mas-vendidos'), api('/api/inventario/alertas'), api('/api/ventas')]);
   const ticket = r.cantidadVentas ? r.totalVentas / r.cantidadVentas : 0;
   const maxQ = Math.max(1, ...mv.map(x => Number(x.cantidad)));
+  const NOMBRE = { EFECTIVO: 'Efectivo', TARJETA: 'Tarjeta', TRANSFERENCIA: 'Transferencia' };
+  const COLOR = { EFECTIVO: '#4a7dff', TARJETA: '#86a9ff', TRANSFERENCIA: '#c4d4ff' };
 
   const porMetodo = {};
   vs.forEach(v => { const m = v.metodoPago || 'EFECTIVO'; porMetodo[m] = (porMetodo[m] || 0) + Number(v.total || 0); });
-  const totalMetodos = Object.values(porMetodo).reduce((a, b) => a + b, 0);
-  const NOMBRE = { EFECTIVO: 'Efectivo', TARJETA: 'Tarjeta', TRANSFERENCIA: 'Transferencia' };
-  const COLOR = { EFECTIVO: 'var(--accent)', TARJETA: 'var(--accent-2)', TRANSFERENCIA: 'var(--accent-3)' };
+  const totalM = Object.values(porMetodo).reduce((a, b) => a + b, 0);
   const metodos = Object.entries(porMetodo).sort((a, b) => b[1] - a[1]);
 
-  $('#view').innerHTML = `
-    <section class="kpis" aria-label="Indicadores">
-      <div class="kpi main"><span>Ventas totales</span><b>${money(r.totalVentas)}</b><small>Ticket promedio ${money(ticket)}</small></div>
-      <div class="kpi"><span>N.º de ventas</span><b>${r.cantidadVentas}</b></div>
-      <div class="kpi"><span>Compras totales</span><b>${money(r.totalCompras)}</b></div>
-      <div class="kpi"><span>Productos</span><b>${r.productos}</b></div>
-      <div class="kpi ${r.stockBajo ? 'warn' : ''}"><span>Stock bajo</span><b>${r.stockBajo}</b><small>${r.stockBajo ? 'Por reponer' : 'Todo en orden'}</small></div>
-    </section>
+  const dias = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toLocaleDateString('en-CA');
+    dias.push({ label: d.toLocaleDateString('es-BO', { weekday: 'short' }).replace('.', ''), total: vs.filter(v => new Date(v.fecha).toLocaleDateString('en-CA') === key).reduce((a, v) => a + Number(v.total || 0), 0) });
+  }
+  const maxD = Math.max(1, ...dias.map(d => d.total));
+  const totalSemana = dias.reduce((a, d) => a + d.total, 0);
 
-    <div class="panels a">
-      <section class="panel">
-        <div class="panel-h"><h3>Productos más vendidos</h3><small>Unidades</small></div>
-        ${mv.length ? `<ul class="list">${mv.map(x => `<li><div class="li-top"><span>${esc(x.producto)}</span><span>${x.cantidad}</span></div>
-          <div class="track"><div class="fill" style="width:${Math.round(Number(x.cantidad) / maxQ * 100)}%"></div></div></li>`).join('')}</ul>`
-          : '<p class="empty">Aún no hay ventas. Registra la primera desde la sección Ventas.</p>'}
+  $('#view').innerHTML = `<div class="dash">
+    <div class="col">
+      <section class="kpis">
+        <div class="kpi main"><span>Ventas totales</span><b>${money(r.totalVentas)}</b><small>Ticket promedio ${money(ticket)}</small></div>
+        <div class="kpi"><span>N.º de ventas</span><b>${r.cantidadVentas}</b></div>
+        <div class="kpi"><span>Compras totales</span><b>${money(r.totalCompras)}</b></div>
+        <div class="kpi"><span>Productos</span><b>${r.productos}</b></div>
       </section>
       <section class="panel">
-        <div class="panel-h"><h3>Alertas de stock mínimo</h3><small>Stock actual / mínimo</small></div>
-        ${al.length ? `<ul class="list">${al.map(p => `<li><div class="li-top"><span>${esc(p.nombre)}</span><span class="bajo">${p.stock} de ${p.stockMinimo}</span></div>
-          <div class="track"><div class="fill alert" style="width:${p.stockMinimo ? Math.min(100, Math.round(p.stock / p.stockMinimo * 100)) : 0}%"></div></div></li>`).join('')}</ul>`
-          : '<p class="empty">Todos los productos están por encima de su stock mínimo.</p>'}
+        <div class="panel-h"><h3>Últimas ventas</h3><span class="pill">${Math.min(vs.length, 5)} recientes</span></div>
+        ${vs.length ? `<ul class="items">${vs.slice(0, 5).map(v => `<li class="item"><span class="dot"></span>
+          <div class="tx"><b>Venta N.º ${v.id} · ${esc(v.cliente?.nombre || 'Mostrador')}</b><span>${NOMBRE[v.metodoPago] || ''} · ${fecha(v.fecha)}</span></div>
+          <span class="am">${money(v.total)}</span></li>`).join('')}</ul>` : '<p class="empty">Aún no hay ventas. Registra la primera desde Ventas.</p>'}
+      </section>
+      <section class="panel">
+        <div class="panel-h"><h3>Productos más vendidos</h3><span class="pill">Unidades</span></div>
+        ${mv.length ? `<ul class="list">${mv.map(x => `<li><div class="li-top"><span>${esc(x.producto)}</span><span>${x.cantidad}</span></div>
+          <div class="track"><div class="fill" style="width:${Math.round(Number(x.cantidad) / maxQ * 100)}%"></div></div></li>`).join('')}</ul>` : '<p class="empty">Sin ventas todavía.</p>'}
       </section>
     </div>
-
-    <div class="panels b">
-      <section class="panel">
-        <div class="panel-h"><h3>Últimas ventas</h3><small>${vs.length ? 'Las 6 más recientes' : ''}</small></div>
-        ${vs.length ? `<table><thead><tr><th>N.º</th><th>Fecha</th><th>Cliente</th><th>Pago</th><th>Total</th></tr></thead><tbody>
-          ${vs.slice(0, 6).map(v => `<tr><td>${v.id}</td><td>${fecha(v.fecha)}</td><td>${esc(v.cliente?.nombre || 'Mostrador')}</td><td>${NOMBRE[v.metodoPago] || ''}</td><td>${money(v.total)}</td></tr>`).join('')}</tbody></table>`
-          : '<p class="empty">Sin ventas registradas.</p>'}
+    <div class="col">
+      <section class="panel alerts">
+        <div class="panel-h"><h3>Stock mínimo</h3><span class="pill ${al.length ? 'alert' : ''}">${al.length ? al.length + ' por reponer' : 'Todo en orden'}</span></div>
+        ${al.length ? `<ul class="list">${al.map(p => `<li><div class="li-top"><span>${esc(p.nombre)}</span><span class="bajo">${p.stock} de ${p.stockMinimo}</span></div>
+          <div class="track"><div class="fill alert" style="width:${p.stockMinimo ? Math.min(100, Math.round(p.stock / p.stockMinimo * 100)) : 0}%"></div></div></li>`).join('')}</ul>`
+          : '<p class="empty">Todos los productos superan su stock mínimo.</p>'}
       </section>
       <section class="panel">
-        <div class="panel-h"><h3>Ventas por método de pago</h3></div>
-        ${metodos.length ? `<div class="split">${metodos.map(([m, t]) => `<i style="width:${t / totalMetodos * 100}%;background:${COLOR[m] || 'var(--accent-3)'}"></i>`).join('')}</div>
-          <ul class="legend">${metodos.map(([m, t]) => `<li><span class="dot" style="background:${COLOR[m] || 'var(--accent-3)'}"></span><span class="nm">${NOMBRE[m] || m}</span><span class="vl">${money(t)} · ${Math.round(t / totalMetodos * 100)}%</span></li>`).join('')}</ul>`
+        <div class="panel-h"><h3>Esta semana</h3><span class="pill">${money(totalSemana)}</span></div>
+        <div class="bars">${dias.map(d => `<div class="${d.total === maxD && d.total > 0 ? 'hi' : ''}" title="${money(d.total)}"><i style="height:${Math.max(3, Math.round(d.total / maxD * 100))}%"></i>${d.label}</div>`).join('')}</div>
+        <div style="height:18px"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-h"><h3>Método de pago</h3></div>
+        ${metodos.length ? `<div class="split">${metodos.map(([m, t]) => `<i style="width:${t / totalM * 100}%;background:${COLOR[m] || '#c4d4ff'}"></i>`).join('')}</div>
+          <ul class="legend">${metodos.map(([m, t]) => `<li><span class="sw" style="background:${COLOR[m] || '#c4d4ff'}"></span><span class="nm">${NOMBRE[m] || m}</span><span class="vl">${money(t)} · ${Math.round(t / totalM * 100)}%</span></li>`).join('')}</ul>`
           : '<p class="empty">Sin datos todavía.</p>'}
       </section>
-    </div>`;
+    </div>
+  </div>`;
 }
 
 async function inventario() {
@@ -245,74 +255,10 @@ async function orden(kind) {
   };
 }
 
-/* ---------- Reportes ---------- */
-const REP = {
-  ventas: { t: 'Ventas por fecha', dates: true, sum: 'total',
-    cols: [['id','ID'],['fecha','Fecha','f'],['cliente','Cliente'],['empleado','Vendedor'],['metodoPago','Pago'],['total','Total','m']] },
-  compras: { t: 'Compras por fecha', dates: true, sum: 'total',
-    cols: [['id','ID'],['fecha','Fecha','f'],['proveedor','Proveedor'],['total','Total','m']] },
-  'mas-vendidos': { t: 'Productos más vendidos', dates: true, sum: 'ingresos',
-    cols: [['producto','Producto'],['cantidad','Unidades'],['ingresos','Ingresos','m']] },
-  'ventas-por-empleado': { t: 'Ventas por empleado', dates: true, sum: 'total',
-    cols: [['grupo','Empleado'],['ventas','N.º ventas'],['total','Total','m']] },
-  'ventas-por-metodo': { t: 'Ventas por método de pago', dates: true, sum: 'total',
-    cols: [['grupo','Método'],['ventas','N.º ventas'],['total','Total','m']] },
-  inventario: { t: 'Inventario valorizado', sum: 'valor',
-    cols: [['codigo','Código'],['producto','Producto'],['categoria','Categoría'],['stock','Stock'],['precioCompra','P. compra','m'],['valor','Valor','m']] },
-  'stock-bajo': { t: 'Productos con stock bajo',
-    cols: [['codigo','Código'],['producto','Producto'],['categoria','Categoría'],['stock','Stock'],['stockMinimo','Mínimo']] }
-};
-
-async function reportes() {
-  $('#view').innerHTML = `
-    <form id="rf" class="card noprint">
-      <div class="grid">
-        <label>Reporte<select id="rt">${Object.entries(REP).map(([k, r]) => `<option value="${k}">${r.t}</option>`).join('')}</select></label>
-        <label>Desde<input type="date" id="rd"></label>
-        <label>Hasta<input type="date" id="rh"></label>
-      </div>
-      <div class="actions"><button type="submit">Generar</button><button type="button" id="rcsv" class="sec">Exportar CSV</button><button type="button" id="rprint" class="sec">Imprimir / PDF</button></div>
-      <p id="msg" class="err"></p>
-    </form>
-    <div id="rout"></div>`;
-  let cur = null;
-
-  const gen = async e => {
-    if (e) e.preventDefault();
-    $('#msg').textContent = '';
-    const k = $('#rt').value, r = REP[k], q = new URLSearchParams();
-    if (r.dates) { if ($('#rd').value) q.set('desde', $('#rd').value); if ($('#rh').value) q.set('hasta', $('#rh').value); }
-    try {
-      const rows = await api('/api/reportes/' + k + (q.toString() ? '?' + q : ''));
-      cur = { k, r, rows };
-      const total = r.sum ? rows.reduce((a, x) => a + Number(x[r.sum] || 0), 0) : null;
-      const rango = r.dates && ($('#rd').value || $('#rh').value) ? `Del ${$('#rd').value || 'inicio'} al ${$('#rh').value || 'hoy'}` : '';
-      const cell = (x, c) => c[2] === 'm' ? money(x[c[0]]) : c[2] === 'f' ? fecha(x[c[0]]) : esc(x[c[0]]);
-      $('#rout').innerHTML = `<h2>${r.t}</h2><p>${rango} · Generado: ${new Date().toLocaleString('es-BO')} · ${rows.length} registro(s)</p>
-        <table><thead><tr>${r.cols.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead><tbody>
-        ${rows.map(x => `<tr>${r.cols.map(c => `<td>${cell(x, c)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${r.cols.length}">Sin datos para este filtro</td></tr>`}
-        ${total !== null ? `<tr><th colspan="${r.cols.length - 1}">TOTAL</th><th>${money(total)}</th></tr>` : ''}</tbody></table>`;
-    } catch (err) { $('#msg').textContent = err.message; }
-  };
-  $('#rf').onsubmit = gen;
-  $('#rt').onchange = gen;
-  $('#rprint').onclick = () => window.print();
-  $('#rcsv').onclick = () => {
-    if (!cur) return;
-    const { k, r, rows } = cur;
-    const lines = [r.cols.map(c => c[1]), ...rows.map(x => r.cols.map(c => c[2] === 'f' ? fecha(x[c[0]]) : x[c[0]]))];
-    const csv = '\ufeff' + lines.map(l => l.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(';')).join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = 'reporte-' + k + '.csv';
-    a.click();
-  };
-  gen();
-}
-
 /* ---------- Router ---------- */
 async function render(name) {
   $('#title').textContent = MENU.find(m => m[0] === name)?.[1] || '';
+  $('#crumb').textContent = $('#title').textContent;
   $('#sub').textContent = name === 'dashboard' ? new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.k === name));
   try {
@@ -320,7 +266,6 @@ async function render(name) {
     else if (name === 'ventas' || name === 'compras') await orden(name);
     else if (name === 'inventario') await inventario();
     else if (name === 'pagos') await pagos();
-    else if (name === 'reportes') await reportes();
     else await crudView(name);
   } catch (e) {
     if (e.message !== 'Sesión expirada') $('#view').innerHTML = `<p class="err">${esc(e.message)}</p>`;

@@ -6,19 +6,15 @@
   <title>Ferretería Copacabana</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <section id="login" class="login">
-    <div class="login-brand">
+    <form id="loginForm" class="login-card">
       <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7L12 2z"/><circle cx="12" cy="12" r="3.2"/></svg>
-      <h1>Ferretería Copacabana</h1>
-      <p>Sistema de gestión e inventario</p>
-    </div>
-    <form id="loginForm" class="login-form">
-      <h2>Iniciar sesión</h2>
-      <p class="hint">Ingresa con tu usuario de empleado.</p>
+      <h1>Ferretería <span class="grad">Copacabana</span></h1>
+      <p class="hint">Gestión e inventario, simple y ordenado.</p>
       <label>Usuario<input id="u" autocomplete="username" required autofocus></label>
       <label>Contraseña<input id="p" type="password" autocomplete="current-password" required></label>
       <button type="submit">Iniciar sesión</button>
@@ -33,13 +29,13 @@
         <div><b>Ferretería</b><span>Copacabana</span></div>
       </div>
       <nav id="nav"></nav>
-      <div class="who">
-        <div class="avatar" id="avatar"></div>
-        <div class="who-text"><b id="whoName"></b><span id="whoRole"></span></div>
-        <button id="btnOut" class="out">Cerrar sesión</button>
-      </div>
+      <button id="btnOut" class="out">Cerrar sesión</button>
     </aside>
     <main>
+      <div class="topbar">
+        <div class="crumb"><span>Inicio</span><i>/</i><b id="crumb"></b></div>
+        <div class="chip-user"><div class="avatar" id="avatar"></div><div><b id="whoName"></b><span id="whoRole"></span></div></div>
+      </div>
       <header class="head"><h1 id="title"></h1><p id="sub"></p></header>
       <div id="view"></div>
     </main>
